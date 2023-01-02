@@ -1,0 +1,280 @@
+using OfficeOpenXml;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading;
+
+using Microsoft.Office.Interop.Excel;
+
+namespace Multimedia
+{
+    class Program
+    {
+        public static double ES = 0;
+        public static int P = 0;
+        static void Main(string[] args)
+        {
+            // Nhập đường dẫn file Excel
+            Console.WriteLine("Nhập đường dẫn file Excel cần tính: ");
+            var excelPath = Console.ReadLine();
+
+            //Create COM Objects.
+            Application excelApp = new Application();
+
+            //Kiểm tra có excelApp ko
+            if (excelApp == null)
+            {
+                Console.WriteLine("Excel is not installed!!");
+                return;
+            }
+
+
+            //Mở file excel
+            Workbook excelBook = excelApp.Workbooks.Open(excelPath);
+
+            //Tính biến TAW
+            var TAW = CalculateTAW(excelBook);
+
+            //Tính biến TBF
+            var TBF = CalculateTBF(excelBook);
+
+            //Tính biến UUCP
+            var UUCP = TAW + TBF;
+
+            //Tính biến TFW
+            double TFW = CalculateTFW(excelBook);
+
+            //Tính biến TCF
+            double TCF = 0.6 + (0.01 * TFW);
+
+            //Tính biến EFW
+            double EFW = CalculateEFW(excelBook);
+
+            //Tính biến EF
+            double EF = 1.4 + (-0.03 * EFW);
+
+            //Tính biến P
+            CalculateP(Program.ES);
+
+            //Tính biến H
+            int H = CalculateH(excelBook);
+
+            double AUCP = UUCP * TCF * EF;
+
+            double E = (10.0 / 6) * AUCP;
+
+
+            double G = 1.4 * E * Program.P * H;
+
+            Console.WriteLine("Điểm Actor (TAW) là: " + TAW);
+            Console.WriteLine("Điểm Use-case (TBF) là: " + TBF);
+            Console.WriteLine("Tính điểm UUCP: " + UUCP);
+            Console.WriteLine("Hệ số phức tạp về KT-CN (TCF) là: " + TCF);
+            Console.WriteLine("Hệ số phức tạp về môi trường (EF) là: " + String.Format("{0:0.0000}", EF));
+            Console.WriteLine("Tính điểm AUCP: " + AUCP);
+            Console.WriteLine("Nội suy thời gian lao động (P): " + Program.P);
+            Console.WriteLine("Giá trị nỗ lực thực tế (E) là: " + E);
+            Console.WriteLine("Mức lương lao động bình quân (H) là: " + H);
+            Console.WriteLine("Giá trị phần mềm nội bộ là: " + String.Format("{0:0}", G) + " đồng");
+
+            //Đóng file excel
+            excelApp.Quit();
+            System.Runtime.InteropServices.Marshal.ReleaseComObject(excelApp);
+        }
+
+        /// <summary>
+        /// Tính hệ số TAW
+        /// </summary>
+        /// <param name="excelBook"></param>
+        /// <returns></returns>
+        static int CalculateTAW(Workbook excelBook)
+        {
+            _Worksheet excelSheet = excelBook.Sheets[2];
+            Microsoft.Office.Interop.Excel.Range excelRange = excelSheet.UsedRange;
+
+            var temp = 0;
+            for (int i = 1; i <= 3; i++)
+            {
+                if (excelRange.Cells[i + 2, 4] != null && excelRange.Cells[i + 2, 4].Value2 != null)
+                {
+
+                    //Console.Write(excelRange.Cells[i + 3, 4].Value2.ToString().Trim());
+                    temp += Int32.Parse(excelRange.Cells[i + 2, 4].Value2.ToString().Trim()) * i;
+                }
+            }
+
+            return temp;
+        }
+
+        /// <summary>
+        /// Tính hệ số TBF
+        /// </summary>
+        /// <param name="excelBook"></param>
+        /// <returns></returns>
+        static int CalculateTBF(Workbook excelBook)
+        {
+            _Worksheet excelSheet = excelBook.Sheets[3];
+            Microsoft.Office.Interop.Excel.Range excelRange = excelSheet.UsedRange;
+
+            var customArr = new List<int> { 5, 10, 15 };
+
+            var temp = 0;
+            var count = 0;
+            double BMT = 1;
+            for (int i = 1; i <= 11; i++)
+            {
+                if (i < 4)
+                    BMT = 1;
+                else if (i < 8)
+                    BMT = 1.2;
+                else
+                    BMT = 1.5;
+                if (excelRange.Cells[i + 3, 3] != null && excelRange.Cells[i + 3, 3].Value2 != null)
+                {
+                    temp += Int32.Parse(excelRange.Cells[i + 3, 3].Value2.ToString().Trim()) * customArr[count] * BMT;
+                    count++;
+
+                    if (count % 3 == 0)
+                    {
+                        count = 0;
+                        i++;
+                    }
+                }
+            }
+
+            return temp;
+        }
+
+        /// <summary>
+        /// Tính hệ số TFW
+        /// </summary>
+        /// <param name="excelBook"></param>
+        /// <returns></returns>
+        static double CalculateTFW(Workbook excelBook)
+        {
+            _Worksheet excelSheet = excelBook.Sheets[4];
+            Microsoft.Office.Interop.Excel.Range excelRange = excelSheet.UsedRange;
+
+            double temp = 0;
+            for (int i = 1; i <= 13; i++)
+            {
+                if (excelRange.Cells[i + 3, 3] != null && excelRange.Cells[i + 3, 3].Value2 != null)
+                {
+                    temp += Double.Parse(excelRange.Cells[i + 3, 3].Value2.ToString().Trim().Replace(',', '.')) * Double.Parse(excelRange.Cells[i + 3, 4].Value2.ToString().Trim());
+                }
+            }
+
+            return temp;
+        }
+
+        /// <summary>
+        /// Tính hệ số EFW
+        /// </summary>
+        /// <param name="excelBook"></param>
+        /// <returns></returns>
+        static double CalculateEFW(Workbook excelBook)
+        {
+            _Worksheet excelSheet = excelBook.Sheets[5];
+            Microsoft.Office.Interop.Excel.Range excelRange = excelSheet.UsedRange;
+
+            double result = 0;
+            for (int i = 1; i <= 9; i++)
+            {
+
+                if (i != 6)
+                {
+                    if (excelRange.Cells[i + 6, 3] != null && excelRange.Cells[i + 6, 3].Value2 != null)
+                    {
+
+                        double temp = Double.Parse(excelRange.Cells[i + 6, 3].Value2.ToString().Trim().Replace(',', '.')) * Double.Parse(excelRange.Cells[i + 6, 4].Value2.ToString().Trim());
+                        result += temp;
+
+                        CalculateES(temp);
+                    }
+                }
+
+
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Tính hệ số ES
+        /// </summary>
+        /// <param name="temp"></param>
+        static void CalculateES(double temp)
+        {
+            if (temp > 3)
+            {
+                Program.ES += 1;
+            }
+            else if (temp > 2)
+            {
+
+                Program.ES += 0.6;
+            }
+            else if (temp > 1)
+            {
+
+                Program.ES += 0.1;
+            }
+            else if (temp > 0)
+            {
+
+                Program.ES += 0.05;
+            }
+            else if (temp <= 0)
+            {
+
+                Program.ES += 0;
+            }
+        }
+
+        /// <summary>
+        /// Tính hệ số P
+        /// </summary>
+        /// <param name="temp"></param>
+        static void CalculateP(double temp)
+        {
+            if (Program.ES >= 3)
+            {
+                Program.P = 20;
+            }
+            else if (Program.ES >= 1)
+            {
+                Program.P = 32;
+            }
+            else if (Program.ES < 1)
+            {
+                Program.P = 48;
+            }
+        }
+
+        /// <summary>
+        /// Tính hệ số TAW
+        /// </summary>
+        /// <param name="excelBook"></param>
+        /// <returns></returns>
+        static int CalculateH(Workbook excelBook)
+        {
+            _Worksheet excelSheet = excelBook.Sheets[6];
+            Microsoft.Office.Interop.Excel.Range excelRange = excelSheet.UsedRange;
+
+            var temp = 0;
+            var totalEmployee = 0;
+            for (int i = 1; i <= 3; i++)
+            {
+                if (excelRange.Cells[i + 3, 2] != null && excelRange.Cells[i + 3, 2].Value2 != null)
+                {
+                    temp += Int32.Parse(excelRange.Cells[i + 3, 2].Value2.ToString().Trim()) * Int32.Parse(excelRange.Cells[i + 3, 3].Value2.ToString().Trim());
+                    totalEmployee += Int32.Parse(excelRange.Cells[i + 3, 3].Value2.ToString().Trim());
+                }
+            }
+            temp /= (totalEmployee * 160);
+            return temp;
+        }
+    }
+
+
+}
